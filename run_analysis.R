@@ -21,14 +21,14 @@ activityLabels = read.table(file.path(pathdata, "activity_labels.txt"),header = 
 
 #Create Sanity and Column Values to the Train Data
 colnames(xtrain) = features[,2]
-colnames(ytrain) = "activityId"
-colnames(subject_train) = "subjectId"
+colnames(ytrain) = "activity"
+colnames(subject_train) = "subject"
 #Create Sanity and column values to the test data
 colnames(xtest) = features[,2]
-colnames(ytest) = "activityId"
-colnames(subject_test) = "subjectId"
+colnames(ytest) = "activity"
+colnames(subject_test) = "subject"
 #Create sanity check for the activity labels value
-colnames(activityLabels) <- c('activityId','activityType')
+colnames(activityLabels) <- c('activity','activityType')
 
 #Merging the train and test data - important outcome of the project
 mrg_train = cbind(ytrain, subject_train, xtrain)
@@ -39,15 +39,15 @@ setAllInOne = rbind(mrg_train, mrg_test)
 # Need step is to read all the values that are available
 colNames = colnames(setAllInOne)
 #Need to get a subset of all the mean and standards and the correspondongin activityID and subjectID 
-mean_and_std = (grepl("activityId" , colNames) | grepl("subjectId" , colNames) | grepl("mean.." , colNames) | grepl("std.." , colNames))
+mean_and_std = (grepl("activity" , colNames) | grepl("subject" , colNames) | grepl("mean.." , colNames) | grepl("std.." , colNames))
 #A subtset has to be created to get the required dataset
 setForMeanAndStd <- setAllInOne[ , mean_and_std == TRUE]
 
-setWithActivityNames = merge(setForMeanAndStd, activityLabels, by='activityId', all.x=TRUE)
+setWithActivityNames = merge(setForMeanAndStd, activityLabels, by='activity', all.x=TRUE)
 
 # New tidy set has to be created 
-secTidySet <- aggregate(. ~ subjectId + activityId, data= setWithActivityNames, mean)
-TidyData <- secTidySet[order(secTidySet$subjectId, secTidySet$activityId),]
+secTidySet <- aggregate(. ~ subject + activity, setWithActivityNames, mean)
+TidyData <- secTidySet[order(secTidySet$subject, secTidySet$activity),]
 
 #The last step is to write the ouput to a text file 
 write.table(TidyData, "TidyData.txt", row.name=FALSE)
