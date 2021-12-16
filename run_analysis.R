@@ -1,53 +1,83 @@
-#define the path where the new folder has been unziped
-pathdata = file.path("./", "UCI HAR Dataset")
-files = list.files(pathdata, recursive=TRUE)
-#show the files
-files
+# ====== Part 1 ======= 
+# Reading the test files and Checking Heads
+test_subjects_index<- read.table("./UCI HAR Dataset/test/subject_test.txt", sep = " ")
+head(test_subjects_index)
+test_activity_index <- read.table("./UCI HAR Dataset/test/y_test.txt", sep = " ")
+head(test_activity_index)
+test_measurement_reading <- read.table("./UCI HAR Dataset/test/X_test.txt")
+head(test_measurement_reading)
 
-### 1. Output Steps - Here we begin how to create the data set of training and test
-#Reading training tables - xtrain / ytrain, subject train
-xtrain = read.table(file.path(pathdata, "train", "X_train.txt"),header = FALSE)
-ytrain = read.table(file.path(pathdata, "train", "y_train.txt"),header = FALSE)
-subject_train = read.table(file.path(pathdata, "train", "subject_train.txt"),header = FALSE)
-#Reading the testing tables
-xtest = read.table(file.path(pathdata, "test", "X_test.txt"),header = FALSE)
-ytest = read.table(file.path(pathdata, "test", "y_test.txt"),header = FALSE)
-subject_test = read.table(file.path(pathdata, "test", "subject_test.txt"),header = FALSE)
-#Read the features data
-features = read.table(file.path(pathdata, "features.txt"),header = FALSE)
-#Read activity labels data
-activityLabels = read.table(file.path(pathdata, "activity_labels.txt"),header = FALSE)
+# Adding subject index and activitiy index as two left columns to the reading 
+test_measurement_reading <- cbind(test_subjects_index, test_activity_index, test_measurement_reading)
+
+# Reading the training files and Checking Heads
+training_subjects_index <- read.table("./UCI HAR Dataset/train/subject_train.txt", sep = " ")
+head(training_subjects_index)
+training_activity_index <- read.table("./UCI HAR Dataset/train/y_train.txt", sep = " ")
+head(training_activity_index)
+training_measurement_reading <- read.table("./UCI HAR Dataset/train/X_train.txt")
+head(training_measurement_reading)
+
+# Adding subject index and activitiy index as two left columns to the reading 
+training_measurement_reading <- cbind(training_subjects_index, training_activity_index, training_measurement_reading)
+
+#Combining train and test data sets
+full_dataset <- rbind(test_measurement_reading, training_measurement_reading)
+
+# Reading the list of features from features.txt and Checking Heads
+features_list <- read.table("./UCI HAR Dataset/features.txt")
+head(features_list)
 
 
-#Create Sanity and Column Values to the Train Data
-colnames(xtrain) = features[,2]
-colnames(ytrain) = "activity"
-colnames(subject_train) = "subject"
-#Create Sanity and column values to the test data
-colnames(xtest) = features[,2]
-colnames(ytest) = "activity"
-colnames(subject_test) = "subject"
-#Create sanity check for the activity labels value
-colnames(activityLabels) <- c('activity','activityType')
+# Giving variable alternative names per features.txt
+names(full_dataset) <- c("SubjectIndex", "Activity" , as.character(features_list[, 2]))
+head(full_dataset)
 
-#Merging the train and test data - important outcome of the project
-mrg_train = cbind(ytrain, subject_train, xtrain)
-mrg_test = cbind(ytest, subject_test, xtest)
-#Create the main data table merging both table tables - this is the outcome of 1
-setAllInOne = rbind(mrg_train, mrg_test)
+# ====== Part 2 ======= 
+# Picking the variable names including "mean" or "std" in their names
+mean_std_vars <- grepl("mean|std", features_list[, 2])
 
-# Need step is to read all the values that are available
-colNames = colnames(setAllInOne)
-#Need to get a subset of all the mean and standards and the correspondongin activityID and subjectID 
-mean_and_std = (grepl("activity" , colNames) | grepl("subject" , colNames) | grepl("mean.." , colNames) | grepl("std.." , colNames))
-#A subtset has to be created to get the required dataset
-setForMeanAndStd <- setAllInOne[ , mean_and_std == TRUE]
+# First two TRUEs to include subject index and activitiy index per each row
+mean_std_measurements <- full_dataset[, c(TRUE, TRUE, mean_std_vars)]
 
-setWithActivityNames = merge(setForMeanAndStd, activityLabels, by='activity', all.x=TRUE)
 
-# New tidy set has to be created 
-secTidySet <- aggregate(. ~ subject + activity, setWithActivityNames, mean)
-TidyData <- secTidySet[order(secTidySet$subject, secTidySet$activity),]
+# ====== Part 3 ======= 
+# Replacing 6 activity codes with corresponding activities for better readability
+an <- as.character(mean_std_measurements[, 2])
+an <- sub("1", "WALKING", an)
+an <- sub("2", "WALKING_UPSTAIRS", an)
+an <- sub("3", "WALKING_DOWNSTAIRS", an)
+an <- sub("4", "SITTING", an)
+an <- sub("5", "STANDING", an)
+an <- sub("6", "LAYING", an)
+mean_std_measurements[, 2] <- an #Replaing activities in the dataset with intuitive names
 
-#The last step is to write the ouput to a text file 
-write.table(TidyData, "TidyData.txt", row.name=FALSE)
+
+# ====== Part 4 ======= 
+# To make variable names more readable we swap the begging "t"s and "f"s with
+# "Time" and "Frequency" per variable descriptions. Also replacing "Acc" with Acceleration
+vn <- names(mean_std_measurements)
+vn <- sub("^t", "Time", vn)
+vn <- sub("^f", "Frequency", vn)
+vn <- sub("Acc", "Acceleration", vn)
+vn <- gsub("\\-m", "M", vn)
+vn <- gsub("\\-s", "S", vn)
+vn <- gsub("\\W", "", vn)
+names(mean_std_measurements) <- vn
+
+
+# ====== Part 5 ======= 
+library(dplyr)
+
+# Columns to group by
+grp_cols <- names(mean_std_measurements)[1:2]
+
+# Convert character vector to list of symbols
+dots <- lapply(grp_cols, as.symbol)
+
+# Perform frequency counts
+mean_per_subject_per_activity <- mean_std_measurements %>%
+  group_by_(.dots=dots) %>%
+  summarise_each(funs(mean))
+
+write.table(mean_per_subject_per_activity, file = "tidydata.txt", row.names = FALSE)
